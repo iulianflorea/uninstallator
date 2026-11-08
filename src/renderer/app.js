@@ -24,13 +24,14 @@ I.image = '<svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15"
 I.reset = '<svg viewBox="0 0 24 24"><path d="M4 11a8 8 0 112.3 5.7M4 4v7h7"/></svg>';
 
 // ------------------------------------------------------------ setări (limbă + aspect)
-const DEFAULTS = { cardOpacity: 50, bgOpacity: 100, bgImage: null };
+const DEFAULTS = { cardOpacity: 50, bgBlur: 0, bgImage: null };
 let settings = { ...DEFAULTS };
 try { settings = { ...DEFAULTS, ...JSON.parse(localStorage.getItem('settings') || '{}') }; } catch { /* nimic */ }
 if (!['ro', 'en'].includes(settings.lang)) settings.lang = 'ro';
 const clampPct = (v, def) => (Number.isFinite(+v) ? Math.min(100, Math.max(0, Math.round(+v))) : def);
 settings.cardOpacity = clampPct(settings.cardOpacity, DEFAULTS.cardOpacity);
-settings.bgOpacity = clampPct(settings.bgOpacity, DEFAULTS.bgOpacity);
+settings.bgBlur = clampPct(settings.bgBlur, DEFAULTS.bgBlur);
+delete settings.bgOpacity; // setare veche, înlocuită de blur
 function saveSettings() { try { localStorage.setItem('settings', JSON.stringify(settings)); } catch { /* nimic */ } }
 
 /** Textul tradus pentru cheia dată. */
@@ -124,7 +125,7 @@ async function setLanguage(lang) {
 function applyAppearance() {
   const b = document.body.style;
   b.setProperty('--o', String(settings.cardOpacity / 100));
-  b.setProperty('--bg-o', String(settings.bgOpacity / 100));
+  b.setProperty('--bg-blur', `${(settings.bgBlur * 0.4).toFixed(1)}px`); // 100% = 40px
   const img = $('#bgImage');
   img.style.backgroundImage = settings.bgImage ? `url("${fileUrl(settings.bgImage)}")` : '';
   $('#backdrop').classList.toggle('has-image', !!settings.bgImage);
@@ -559,7 +560,7 @@ function openSettings() {
         <button class="btn plain small" data-act="bg-pick">${I.image} ${esc(hasImg ? t('setChange') : t('setChoose'))}</button>
         ${hasImg ? `<button class="btn plain small" data-act="bg-clear">${I.trash} ${esc(t('setRemove'))}</button>` : ''}
       </div></div></div>
-      ${sliderHtml('bgOpacity', settings.bgOpacity, t('setBgOpacity'), t('setBgOpacityHint'), t('setFaint'), t('setStrong'))}
+      ${hasImg ? sliderHtml('bgBlur', settings.bgBlur, t('setBgBlur'), t('setBgBlurHint'), t('setSharp'), t('setBlurry')) : ''}
       ${sliderHtml('cardOpacity', settings.cardOpacity, t('setCardOpacity'), t('setCardOpacityHint'), t('setTransparent'), t('setMatte'))}
     </div>
     <div class="sheet-foot">
@@ -567,8 +568,9 @@ function openSettings() {
       <button class="btn primary" data-act="close">${esc(t('done'))}</button>
     </div>`, 'settings');
 
-  for (const id of ['bgOpacity', 'cardOpacity']) {
+  for (const id of ['bgBlur', 'cardOpacity']) {
     const input = sheet.querySelector(`#${id}`);
+    if (!input) continue;
     input.addEventListener('input', () => {
       settings[id] = clampPct(input.value, DEFAULTS[id]);
       input.style.setProperty('--p', `${settings[id]}%`);

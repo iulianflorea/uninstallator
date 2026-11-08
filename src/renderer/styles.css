@@ -68,10 +68,10 @@ body.light {
 [hidden] { display: none !important; }
 html, body { height: 100%; margin: 0; }
 body {
-  /* --o: opacitatea sticlei (0 = transparent, .5 = implicit, 1 = mat); --bg-o: opacitatea fundalului.
+  /* --o: opacitatea sticlei (0 = transparent, .5 = implicit, 1 = mat); --bg-blur: blur-ul imaginii de fundal.
      Ambele sunt setate din panoul „Aspect și limbă”. */
   --o: .5;
-  --bg-o: 1;
+  --bg-blur: 0px;
   --sheen: min(1, calc(var(--o) * 2));
   --mat: calc(max(0, var(--o) - .5) * 2 * var(--mat-max));
   --glass-top: rgb(255 255 255 / calc(var(--glass-top-a) * var(--sheen)));
@@ -97,18 +97,19 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 /* ------------------------------------------------ fundal viu */
 .backdrop { position: fixed; inset: 0; overflow: hidden; z-index: 0; }
 .bg-image {
-  position: absolute; inset: 0; background: center / cover no-repeat; opacity: var(--bg-o);
-  transition: opacity .2s var(--ease);
+  /* depășește marginile ferestrei, ca blur-ul să nu lase margini estompate */
+  position: absolute; inset: calc(var(--bg-blur) * -2.5); background: center / cover no-repeat;
+  filter: blur(var(--bg-blur));
 }
 .backdrop.has-image .blob { display: none; }
 .blob {
-  position: absolute; border-radius: 50%; filter: blur(90px); opacity: calc(var(--blob-op) * var(--bg-o));
+  position: absolute; border-radius: 50%; filter: blur(90px); opacity: var(--blob-op);
   animation: float 26s ease-in-out infinite alternate; will-change: transform;
 }
 .b1 { width: 52vw; height: 52vw; left: -12vw; top: -18vw; background: var(--blob-a); }
 .b2 { width: 44vw; height: 44vw; right: -14vw; top: -6vw; background: var(--blob-b); animation-duration: 32s; animation-delay: -8s; }
 .b3 { width: 40vw; height: 40vw; left: 18vw; bottom: -22vw; background: var(--blob-c); animation-duration: 29s; animation-delay: -14s; }
-.b4 { width: 30vw; height: 30vw; right: 6vw; bottom: -10vw; background: var(--blob-d); animation-duration: 36s; animation-delay: -4s; opacity: calc(var(--blob-op) * var(--bg-o) * .7); }
+.b4 { width: 30vw; height: 30vw; right: 6vw; bottom: -10vw; background: var(--blob-d); animation-duration: 36s; animation-delay: -4s; opacity: calc(var(--blob-op) * .7); }
 @keyframes float {
   0% { transform: translate(0, 0) scale(1); }
   50% { transform: translate(6vw, 4vh) scale(1.12); }

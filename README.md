@@ -19,12 +19,12 @@ Din butonul **Aspect și limbă** (jos, în bara laterală) poți:
 
 - schimba **limba** interfeței: română (implicit) sau engleză;
 - alege o **imagine de fundal** (PNG, JPG, WEBP, GIF, BMP, AVIF). Imaginea e copiată în `~/.config/Dezinstalator/backgrounds`, așa că rămâne chiar dacă muți sau ștergi originalul;
-- regla **opacitatea fundalului** (cât de puternic se vede imaginea sau culorile animate);
+- regla **blur-ul imaginii de fundal**, de la clară la încețoșată (apare când ai ales o imagine);
 - regla **opacitatea cardurilor**, adică efectul de sticlă al cardurilor și panourilor: de la complet transparent la mat. 50% e aspectul original.
 
-Setările se păstrează între porniri. „Revino la implicit” resetează fundalul și opacitățile.
+Setările se păstrează între porniri. „Revino la implicit” resetează fundalul, blur-ul și opacitatea.
 
-> **English:** the app is also available in English. Open **Appearance & language** in the sidebar to switch the language, set a background image, and adjust the background opacity and the card glass opacity (from transparent to matte).
+> **English:** the app is also available in English. Open **Appearance & language** in the sidebar to switch the language, set a background image, and adjust the background image blur and the card glass opacity (from transparent to matte).
 
 ## Instalare
 
@@ -37,7 +37,7 @@ Scriptul instalează Node.js și `rpm-build` (dacă lipsesc), construiește pach
 Dacă ai deja fișierul `.rpm` gata construit:
 
 ```bash
-sudo dnf install ./dezinstalator-1.0.0.x86_64.rpm
+sudo dnf install ./dezinstalator-1.1.0.x86_64.rpm
 ```
 
 ## Siguranță

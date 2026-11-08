@@ -1,7 +1,7 @@
 {
   "name": "dezinstalator",
   "productName": "Dezinstalator",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Dezinstalează orice aplicație de pe Fedora: RPM, Flatpak, Snap, AppImage sau instalată manual.",
   "homepage": "https://singularity-cloud.com",
   "license": "MIT",

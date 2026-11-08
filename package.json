@@ -1,0 +1,71 @@
+{
+  "name": "dezinstalator",
+  "productName": "Dezinstalator",
+  "version": "1.0.0",
+  "description": "Dezinstalează orice aplicație de pe Fedora: RPM, Flatpak, Snap, AppImage sau instalată manual.",
+  "homepage": "https://singularity-cloud.com",
+  "license": "MIT",
+  "author": {
+    "name": "Singularity AI SRL",
+    "email": "office@singularity-ai.ro"
+  },
+  "main": "src/main.js",
+  "desktopName": "dezinstalator.desktop",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --linux rpm",
+    "test": "node test/run-tests.js"
+  },
+  "devDependencies": {
+    "electron": "^45.2.3",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "ro.singularity.dezinstalator",
+    "productName": "Dezinstalator",
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "helper",
+        "to": "helper"
+      }
+    ],
+    "linux": {
+      "target": [
+        "rpm"
+      ],
+      "executableName": "dezinstalator",
+      "category": "System",
+      "icon": "build/icons",
+      "synopsis": "Dezinstalează orice aplicație",
+      "desktop": {
+        "entry": {
+          "Name": "Dezinstalator",
+          "Comment": "Dezinstalează orice aplicație, oricum ar fi instalată",
+          "Keywords": "uninstall;remove;dezinstalare;stergere;aplicatii;"
+        }
+      },
+      "syncDesktopName": true
+    },
+    "rpm": {
+      "afterInstall": "build/after-install.sh",
+      "afterRemove": "build/after-remove.sh",
+      "depends": [
+        "gtk3",
+        "nss",
+        "libXtst",
+        "xdg-utils",
+        "at-spi2-core",
+        "libuuid",
+        "polkit"
+      ]
+    },
+    "publish": null,
+    "directories": {
+      "output": "dist"
+    }
+  }
+}

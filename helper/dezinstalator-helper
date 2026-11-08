@@ -1,0 +1,83 @@
+#!/bin/bash
+# Ajutor privilegiat pentru Dezinstalator.
+# Rulează ca root prin pkexec și acceptă DOAR comenzile de mai jos,
+# cu argumente verificate strict. Nu execută nimic altceva.
+set -uo pipefail
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export LC_ALL=C.UTF-8
+
+die() { echo "EROARE: $*" >&2; exit 2; }
+
+valid_name() { [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]]; }
+
+# Folderele din care avem voie să ștergem fișiere (doar lucruri care
+# NU aparțin niciunui pachet RPM).
+path_allowed() {
+    local p="$1" parent real
+    [[ "$p" == /* ]] || return 1
+    [[ "$p" == *"/../"* || "$p" == *"/./"* || "$p" == */.. ]] && return 1
+    # Rezolvăm folderul părinte, dar nu și ultimul element (poate fi o legătură simbolică)
+    parent=$(realpath -e -- "$(dirname -- "$p")" 2>/dev/null) || return 1
+    real="$parent/$(basename -- "$p")"
+    [[ -e "$real" || -L "$real" ]] || return 1
+    case "$real" in
+        /opt/?*) ;;                                    # /opt/<ceva>
+        /usr/local/bin/?*|/usr/local/sbin/?*) ;;
+        /usr/local/share/applications/?*.desktop) ;;
+        /usr/local/share/icons/?*/?*) ;;
+        /usr/local/?*/?*) ;;                           # /usr/local/<x>/<y>
+        /usr/share/applications/?*.desktop) ;;
+        *) return 1 ;;
+    esac
+    # Nu ștergem niciodată fișiere care aparțin unui pachet RPM
+    if rpm -qf -- "$real" >/dev/null 2>&1; then
+        return 1
+    fi
+    printf '%s' "$real"
+}
+
+cmd="${1:-}"
+shift || true
+
+case "$cmd" in
+    rpm-preview)
+        (( $# > 0 )) || die "lipsesc pachetele"
+        for p in "$@"; do valid_name "$p" || die "nume de pachet invalid: $p"; done
+        dnf remove --assumeno -- "$@" 2>&1
+        exit 0
+        ;;
+    rpm-remove)
+        (( $# > 0 )) || die "lipsesc pachetele"
+        for p in "$@"; do valid_name "$p" || die "nume de pachet invalid: $p"; done
+        dnf remove -y -- "$@" 2>&1
+        ;;
+    snap-remove)
+        (( $# == 1 || $# == 2 )) || die "un singur snap odată"
+        valid_name "$1" || die "nume invalid: $1"
+        if [[ "${2:-}" == "--purge" ]]; then
+            snap remove --purge -- "$1" 2>&1
+        elif (( $# == 1 )); then
+            snap remove -- "$1" 2>&1
+        else
+            die "argument invalid: $2"
+        fi
+        ;;
+    rm-paths)
+        (( $# > 0 )) || die "lipsesc căile"
+        declare -a ok=()
+        for p in "$@"; do
+            r=$(path_allowed "$p") || die "cale nepermisă sau deținută de un pachet: $p"
+            ok+=("$r")
+        done
+        for r in "${ok[@]}"; do
+            echo "Șterg $r"
+            rm -rf --one-file-system -- "$r" || die "nu am putut șterge $r"
+        done
+        ;;
+    ping)
+        echo "ok"
+        ;;
+    *)
+        die "comandă necunoscută: $cmd"
+        ;;
+esac

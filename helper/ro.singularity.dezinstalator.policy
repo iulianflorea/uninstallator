@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>Singularity AI</vendor>
+  <vendor_url>https://singularity-cloud.com</vendor_url>
+  <action id="ro.singularity.dezinstalator.helper">
+    <description>Dezinstalare aplicații de sistem</description>
+    <message>Dezinstalatorul are nevoie de parola ta pentru a elimina aplicații de sistem</message>
+    <icon_name>edit-delete</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <!-- parola e ținută minte câteva minute, ca să nu o ceară la fiecare pas -->
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/opt/Dezinstalator/resources/helper/dezinstalator-helper</annotate>
+  </action>
+</policyconfig>

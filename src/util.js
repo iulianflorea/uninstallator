@@ -4,6 +4,7 @@ const fs = require('fs');
 const fsp = fs.promises;
 const os = require('os');
 const path = require('path');
+const { getLang } = require('./i18n');
 
 /** Rulează o comandă fără shell. Nu aruncă niciodată excepții. */
 function run(cmd, args = [], opts = {}) {
@@ -73,7 +74,8 @@ function humanSize(bytes) {
   let i = 0;
   let n = Number(bytes);
   while (n >= 1000 && i < u.length - 1) { n /= 1000; i++; }
-  return `${n >= 100 || i === 0 ? Math.round(n) : n.toFixed(1)} ${u[i]}`;
+  const num = String(n >= 100 || i === 0 ? Math.round(n) : n.toFixed(1));
+  return `${getLang() === 'ro' ? num.replace('.', ',') : num} ${u[i]}`;
 }
 
 /** Transformă „123.4 MB” (din flatpak) în octeți. */

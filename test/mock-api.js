@@ -38,6 +38,9 @@
       cleanFlatpak: async () => ({ ok: true, nothing: true }),
       showInFolder: async () => {},
       getTheme: async () => ({ dark: params.get('theme') !== 'light' }),
+      setLang: async (l) => l,
+      pickBackground: async () => (params.get('bg') ? { path: params.get('bg') } : null),
+      clearBackground: async () => true,
       setTheme: async (m) => ({ dark: m === 'dark' || (m === 'system' && params.get('theme') !== 'light') }),
       win: () => {}, onProgress: () => {}, onTheme: () => {}, onWindowState: () => {},
     };

@@ -1,6 +1,7 @@
 'use strict';
 const path = require('path');
 const { fsp, readdirSafe, exists } = require('./util');
+const { getLang } = require('./i18n');
 
 /** Citește un fișier .desktop și întoarce câmpurile din [Desktop Entry]. */
 async function parseDesktopFile(file) {
@@ -25,11 +26,18 @@ function parseDesktopText(text, file) {
   }
   if (!e.Type && !e.Name) return null;
   const truthy = (v) => /^true$/i.test(v || '');
+  // Varianta tradusă în limba aleasă (Name[ro], Name[en_GB], Name[en]…), altfel cea implicită
+  const lang = getLang();
+  const loc = (k) => {
+    if (e[`${k}[${lang}]`]) return e[`${k}[${lang}]`];
+    const other = Object.keys(e).find((x) => x.startsWith(`${k}[${lang}_`));
+    return other ? e[other] : '';
+  };
   return {
     file,
     id: path.basename(file, '.desktop'),
-    name: e['Name[ro]'] || e.Name || path.basename(file, '.desktop'),
-    comment: e['Comment[ro]'] || e.Comment || e['GenericName[ro]'] || e.GenericName || '',
+    name: loc('Name') || e.Name || path.basename(file, '.desktop'),
+    comment: loc('Comment') || e.Comment || loc('GenericName') || e.GenericName || '',
     icon: e.Icon || '',
     exec: e.Exec || '',
     tryExec: e.TryExec || '',

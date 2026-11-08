@@ -13,6 +13,19 @@ Aplicație desktop pentru Fedora care dezinstalează **orice program, oricum ar 
 
 Pentru fiecare aplicație caută și **setările și datele rămase** (`~/.config`, `~/.local/share`, `~/.cache`, foldere ascunse din home). Le poți șterge bifând o căsuță. Ajung în Coș, de unde le poți recupera.
 
+## Aspect și limbă
+
+Din butonul **Aspect și limbă** (jos, în bara laterală) poți:
+
+- schimba **limba** interfeței: română (implicit) sau engleză;
+- alege o **imagine de fundal** (PNG, JPG, WEBP, GIF, BMP, AVIF). Imaginea e copiată în `~/.config/Dezinstalator/backgrounds`, așa că rămâne chiar dacă muți sau ștergi originalul;
+- regla **opacitatea fundalului** (cât de puternic se vede imaginea sau culorile animate);
+- regla **opacitatea cardurilor**, adică efectul de sticlă al cardurilor și panourilor: de la complet transparent la mat. 50% e aspectul original.
+
+Setările se păstrează între porniri. „Revino la implicit” resetează fundalul și opacitățile.
+
+> **English:** the app is also available in English. Open **Appearance & language** in the sidebar to switch the language, set a background image, and adjust the background opacity and the card glass opacity (from transparent to matte).
+
 ## Instalare
 
 ```bash

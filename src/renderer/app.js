@@ -20,23 +20,44 @@ const I = {
   undo: '<svg viewBox="0 0 24 24"><path d="M9 14L4.5 9.5 9 5"/><path d="M4.5 9.5H15a5 5 0 010 10h-3"/></svg>',
 };
 
+I.image = '<svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M20.5 15.5l-5-5-9 9"/></svg>';
+I.reset = '<svg viewBox="0 0 24 24"><path d="M4 11a8 8 0 112.3 5.7M4 4v7h7"/></svg>';
+
+// ------------------------------------------------------------ setări (limbă + aspect)
+const DEFAULTS = { cardOpacity: 50, bgOpacity: 100, bgImage: null };
+let settings = { ...DEFAULTS };
+try { settings = { ...DEFAULTS, ...JSON.parse(localStorage.getItem('settings') || '{}') }; } catch { /* nimic */ }
+if (!['ro', 'en'].includes(settings.lang)) settings.lang = 'ro';
+const clampPct = (v, def) => (Number.isFinite(+v) ? Math.min(100, Math.max(0, Math.round(+v))) : def);
+settings.cardOpacity = clampPct(settings.cardOpacity, DEFAULTS.cardOpacity);
+settings.bgOpacity = clampPct(settings.bgOpacity, DEFAULTS.bgOpacity);
+function saveSettings() { try { localStorage.setItem('settings', JSON.stringify(settings)); } catch { /* nimic */ } }
+
+/** Textul tradus pentru cheia dată. */
+function t(key, ...args) {
+  const d = window.I18N[settings.lang] || window.I18N.ro;
+  const v = d[key] ?? window.I18N.ro[key];
+  if (v === undefined) return key;
+  return typeof v === 'function' ? v(...args) : v;
+}
+
 const KIND = {
-  rpm: { label: 'RPM', cls: 'rpm' },
-  flatpak: { label: 'Flatpak', cls: 'flatpak' },
-  appimage: { label: 'AppImage', cls: 'appimage' },
-  snap: { label: 'Snap', cls: 'snap' },
-  manual: { label: 'Manual', cls: 'manual' },
-  shortcut: { label: 'Scurtătură', cls: 'shortcut' },
+  rpm: { label: () => 'RPM', cls: 'rpm' },
+  flatpak: { label: () => 'Flatpak', cls: 'flatpak' },
+  appimage: { label: () => 'AppImage', cls: 'appimage' },
+  snap: { label: () => 'Snap', cls: 'snap' },
+  manual: { label: () => 'Manual', cls: 'manual' },
+  shortcut: { label: () => t('kindShortcut'), cls: 'shortcut' },
 };
 
 const VIEWS = [
-  { id: 'all', title: 'Toate aplicațiile', icon: 'all', color: 'linear-gradient(160deg,#5e9bff,#2f5bff)', filter: (i) => !i.system },
-  { id: 'rpm', title: 'Aplicații RPM', icon: 'rpm', color: 'linear-gradient(160deg,#4fb3ff,#0a6cff)', filter: (i) => i.kind === 'rpm' && !i.system },
-  { id: 'flatpak', title: 'Flatpak', icon: 'flatpak', color: 'linear-gradient(160deg,#d58bff,#8a3dff)', filter: (i) => i.kind === 'flatpak' },
-  { id: 'appimage', title: 'AppImage', icon: 'appimage', color: 'linear-gradient(160deg,#ffc15e,#ff7a00)', filter: (i) => i.kind === 'appimage' },
-  { id: 'snap', title: 'Snap', icon: 'snap', color: 'linear-gradient(160deg,#6ee68a,#1fb04a)', filter: (i) => i.kind === 'snap' && !i.system, needs: 'snap' },
-  { id: 'manual', title: 'Instalate manual', icon: 'manual', color: 'linear-gradient(160deg,#6fe0f0,#1597b8)', filter: (i) => i.kind === 'manual' || i.kind === 'shortcut' },
-  { id: 'system', title: 'Pachete de sistem', icon: 'system', color: 'linear-gradient(160deg,#a3a3ad,#5f5f6b)', filter: (i) => i.system, sep: true },
+  { id: 'all', title: 'viewAll', icon: 'all', color: 'linear-gradient(160deg,#5e9bff,#2f5bff)', filter: (i) => !i.system },
+  { id: 'rpm', title: 'viewRpm', icon: 'rpm', color: 'linear-gradient(160deg,#4fb3ff,#0a6cff)', filter: (i) => i.kind === 'rpm' && !i.system },
+  { id: 'flatpak', title: 'viewFlatpak', icon: 'flatpak', color: 'linear-gradient(160deg,#d58bff,#8a3dff)', filter: (i) => i.kind === 'flatpak' },
+  { id: 'appimage', title: 'viewAppimage', icon: 'appimage', color: 'linear-gradient(160deg,#ffc15e,#ff7a00)', filter: (i) => i.kind === 'appimage' },
+  { id: 'snap', title: 'viewSnap', icon: 'snap', color: 'linear-gradient(160deg,#6ee68a,#1fb04a)', filter: (i) => i.kind === 'snap' && !i.system, needs: 'snap' },
+  { id: 'manual', title: 'viewManual', icon: 'manual', color: 'linear-gradient(160deg,#6fe0f0,#1597b8)', filter: (i) => i.kind === 'manual' || i.kind === 'shortcut' },
+  { id: 'system', title: 'viewSystem', icon: 'system', color: 'linear-gradient(160deg,#a3a3ad,#5f5f6b)', filter: (i) => i.system, sep: true },
 ];
 
 const state = {
@@ -51,10 +72,10 @@ function humanSize(b) {
   if (b == null || isNaN(b) || b <= 0) return '';
   const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0; let n = b;
   while (n >= 1000 && i < u.length - 1) { n /= 1000; i++; }
-  return `${(n >= 100 || i === 0 ? Math.round(n) : n.toFixed(1)).toString().replace('.', ',')} ${u[i]}`;
+  const num = String(n >= 100 || i === 0 ? Math.round(n) : n.toFixed(1));
+  return `${settings.lang === 'ro' ? num.replace('.', ',') : num} ${u[i]}`;
 }
-const fmtDate = (ms) => (ms ? new Intl.DateTimeFormat('ro-RO', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(ms)) : '');
-const plural = (n, one, many) => `${n.toLocaleString('ro-RO')} ${n === 1 ? one : (n !== 0 && (n % 100 >= 20 || n % 100 === 0) ? `de ${many}` : many)}`;
+const fmtDate = (ms) => (ms ? new Intl.DateTimeFormat(t('locale'), { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(ms)) : '');
 function hue(s) { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
 
 function iconHtml(item) {
@@ -77,6 +98,38 @@ function toast(text, type = 'ok') {
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 320); }, 3800);
 }
 
+// ------------------------------------------------------------ limbă
+/** Textele fixe din index.html (data-i18n, data-i18n-title …). */
+function applyStaticTexts() {
+  document.documentElement.lang = settings.lang;
+  document.title = t('appName');
+  document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-title]').forEach((el) => { el.title = t(el.dataset.i18nTitle); });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => { el.placeholder = t(el.dataset.i18nPlaceholder); });
+  document.querySelectorAll('[data-i18n-aria]').forEach((el) => { el.setAttribute('aria-label', t(el.dataset.i18nAria)); });
+}
+
+async function setLanguage(lang) {
+  if (lang === settings.lang || !window.I18N[lang]) return;
+  settings.lang = lang;
+  saveSettings();
+  applyStaticTexts();
+  await api.setLang(lang);
+  render();
+  // descrierile și sursele vin de la scanare, așa că le cerem din nou în noua limbă
+  load({ quiet: !state.loading });
+}
+
+// ------------------------------------------------------------ aspect (fundal + sticlă)
+function applyAppearance() {
+  const b = document.body.style;
+  b.setProperty('--o', String(settings.cardOpacity / 100));
+  b.setProperty('--bg-o', String(settings.bgOpacity / 100));
+  const img = $('#bgImage');
+  img.style.backgroundImage = settings.bgImage ? `url("${fileUrl(settings.bgImage)}")` : '';
+  $('#backdrop').classList.toggle('has-image', !!settings.bgImage);
+}
+
 // ------------------------------------------------------------ temă
 let themeMode = 'system';
 try { themeMode = localStorage.getItem('theme') || 'system'; } catch { /* nimic */ }
@@ -91,7 +144,7 @@ async function setTheme(mode) {
   const r = await api.setTheme(mode);
   applyTheme(r.dark);
 }
-api.onTheme((t) => applyTheme(t.dark));
+api.onTheme((th) => applyTheme(th.dark));
 $('#themeSeg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setTheme(b.dataset.theme); });
 
 // ------------------------------------------------------------ fereastră
@@ -100,18 +153,23 @@ $('.side-top').addEventListener('dblclick', (e) => { if (!e.target.closest('butt
 $('.topbar').addEventListener('dblclick', (e) => { if (!e.target.closest('.tools')) api.win('max'); });
 
 // ------------------------------------------------------------ date
+let scanSeq = 0;
 async function load({ quiet } = {}) {
+  // dacă pornește o scanare nouă înainte să se termine cea veche, rezultatul vechi e ignorat
+  const seq = ++scanSeq;
   state.loading = !quiet;
   $('#refresh').classList.add('spin');
   if (!quiet) render();
   try {
     const res = await api.scan();
+    if (seq !== scanSeq) return;
     state.items = res.items;
     state.tools = res.tools;
     state.byKey = new Map(res.items.map((i) => [i.key, i]));
     for (const k of [...state.selected]) if (!state.byKey.has(k)) state.selected.delete(k);
   } catch (e) {
-    toast('Nu am putut citi lista de aplicații', 'err');
+    if (seq !== scanSeq) return;
+    toast(t('scanFailed'), 'err');
     console.error(e);
   }
   state.loading = false;
@@ -128,10 +186,11 @@ function visibleItems() {
     list = list.filter((i) => [i.name, i.description, i.pkg, i.appId, i.snap, i.path, i.source]
       .some((s) => s && String(s).toLowerCase().includes(q)));
   }
+  const byName = (a, b) => a.name.localeCompare(b.name, settings.lang, { sensitivity: 'base' });
   const by = {
-    name: (a, b) => a.name.localeCompare(b.name, 'ro', { sensitivity: 'base' }),
-    size: (a, b) => (b.size || 0) - (a.size || 0),
-    recent: (a, b) => (b.installed || 0) - (a.installed || 0),
+    name: byName,
+    size: (a, b) => (b.size || 0) - (a.size || 0) || byName(a, b),
+    recent: (a, b) => (b.installed || 0) - (a.installed || 0) || byName(a, b),
   }[state.sort];
   return list.sort(by);
 }
@@ -143,26 +202,26 @@ function renderNav() {
   for (const v of VIEWS) {
     if (v.needs && !state.tools[v.needs] && !counts[v.id]) continue;
     if (v.id !== 'all' && v.id !== 'system' && !counts[v.id] && !state.loading) continue;
-    if (v.sep) html += '<div class="nav-label">Avansat</div>';
-    else if (v.id === 'rpm') html += '<div class="nav-label">După sursă</div>';
+    if (v.sep) html += `<div class="nav-label">${esc(t('navAdvanced'))}</div>`;
+    else if (v.id === 'rpm') html += `<div class="nav-label">${esc(t('navBySource'))}</div>`;
     html += `<button class="nav-item ${state.view === v.id ? 'active' : ''}" data-view="${v.id}">
       <span class="ico" style="background:${v.color}">${I[v.icon]}</span>
-      <span class="label">${esc(v.title)}</span>
+      <span class="label">${esc(t(v.title))}</span>
       <span class="count">${state.loading ? '' : counts[v.id]}</span></button>`;
   }
   $('#nav').innerHTML = html;
   const total = counts.all;
   const size = state.items.filter((i) => !i.system).reduce((s, i) => s + (i.size || 0), 0);
-  $('#brandSub').textContent = state.loading ? 'Se caută aplicațiile…' : `${plural(total, 'aplicație', 'aplicații')} · ${humanSize(size)}`;
+  $('#brandSub').textContent = state.loading ? t('scanning') : `${t('nApps', total)}${size ? ' · ' + humanSize(size) : ''}`;
 }
 
 function cardHtml(item, i) {
-  const k = KIND[item.kind];
+  const k = KIND[item.kind] || KIND.shortcut;
   const tags = [
-    `<span class="badge ${k.cls}">${k.label}</span>`,
+    `<span class="badge ${k.cls}">${esc(k.label())}</span>`,
     item.version ? `<span>${esc(item.version.length > 18 ? item.version.slice(0, 18) + '…' : item.version)}</span>` : '',
     item.size ? `<span class="dot">${humanSize(item.size)}</span>` : '',
-    item.protected ? `<span class="badge lock">${I.lock.replace('<svg', '<svg style="width:11px;height:11px"')} Protejat</span>` : '',
+    item.protected ? `<span class="badge lock">${I.lock.replace('<svg', '<svg style="width:11px;height:11px"')} ${esc(t('protectedBadge'))}</span>` : '',
   ].join('');
   return `<div class="card ${state.selected.has(item.key) ? 'selected' : ''} ${item.protected ? 'locked' : ''}" data-key="${esc(item.key)}" style="--i:${Math.min(i, 40)}" tabindex="0">
     ${iconHtml(item)}
@@ -171,7 +230,7 @@ function cardHtml(item, i) {
       <div class="desc" title="${esc(item.description)}">${esc(item.description || item.source)}</div>
       <div class="tags">${tags}</div>
     </div>
-    <button class="check" data-check aria-label="Selectează">${I.check}</button>
+    <button class="check" data-check aria-label="${esc(t('select'))}">${I.check}</button>
   </div>`;
 }
 
@@ -179,31 +238,32 @@ function render() {
   renderNav();
   const v = VIEWS.find((x) => x.id === state.view) || VIEWS[0];
   const grid = $('#grid');
-  $('#viewTitle').textContent = v.title;
+  $('#viewTitle').textContent = t(v.title);
   document.querySelectorAll('#sortSeg button').forEach((b) => b.classList.toggle('on', b.dataset.sort === state.sort));
 
   const banner = $('#banner');
   if (state.view === 'system' && !state.loading) {
     banner.hidden = false;
-    banner.innerHTML = `${I.warn}<div><b>Ai grijă aici.</b> Acestea sunt componente ale sistemului Fedora, fără scurtătură în meniu. Cele marcate „Protejat” nu pot fi șterse. Pentru restul, înainte de dezinstalare îți arăt exact ce se mai elimină odată cu ele.</div>`;
+    banner.innerHTML = `${I.warn}<div>${t('systemBanner')}</div>`;
   } else banner.hidden = true;
 
   if (state.loading) {
-    $('#viewSub').textContent = 'Se caută aplicațiile instalate…';
+    $('#viewSub').textContent = t('scanningLong');
     grid.className = 'grid';
     grid.innerHTML = Array.from({ length: 12 }, () => '<div class="skeleton"></div>').join('');
+    renderSelBar();
     return;
   }
 
   const list = visibleItems();
   const size = list.reduce((s, i) => s + (i.size || 0), 0);
-  $('#viewSub').textContent = `${plural(list.length, 'element', 'elemente')}${size ? ' · ' + humanSize(size) : ''}${state.q ? ` pentru „${state.q}”` : ''}`;
+  $('#viewSub').textContent = `${t('nItems', list.length)}${size ? ' · ' + humanSize(size) : ''}${state.q ? t('forQuery', state.q) : ''}`;
   grid.className = `grid ${state.view === 'system' ? 'list' : ''} ${state.selected.size ? 'selecting' : ''}`;
 
   if (!list.length) {
     grid.innerHTML = state.q
-      ? `<div class="empty"><div class="big">🔍</div><h3>Nimic găsit</h3>Nu există nicio aplicație care să se potrivească cu „${esc(state.q)}”.</div>`
-      : '<div class="empty"><div class="big">✨</div><h3>Totul e curat</h3>Nu există nimic instalat în această categorie.</div>';
+      ? `<div class="empty"><div class="big">🔍</div><h3>${esc(t('emptySearchTitle'))}</h3>${esc(t('emptySearch', state.q))}</div>`
+      : `<div class="empty"><div class="big">✨</div><h3>${esc(t('emptyTitle'))}</h3>${esc(t('empty'))}</div>`;
   } else {
     const max = state.view === 'system' ? 3000 : 1000;
     grid.innerHTML = list.slice(0, max).map(cardHtml).join('');
@@ -214,10 +274,10 @@ function render() {
 function renderSelBar() {
   const bar = $('#selBar');
   const n = state.selected.size;
-  bar.hidden = n === 0;
+  bar.hidden = n === 0 || state.loading;
   if (n) {
     const size = [...state.selected].reduce((s, k) => s + ((state.byKey.get(k) || {}).size || 0), 0);
-    $('#selText').textContent = `${plural(n, 'aplicație selectată', 'aplicații selectate')}${size ? ' · ' + humanSize(size) : ''}`;
+    $('#selText').textContent = `${t('nSelected', n)}${size ? ' · ' + humanSize(size) : ''}`;
   }
   $('#grid').classList.toggle('selecting', n > 0);
 }
@@ -232,9 +292,10 @@ $('#nav').addEventListener('click', (e) => {
 });
 $('#search').addEventListener('input', (e) => { state.q = e.target.value; render(); });
 $('#sortSeg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { state.sort = b.dataset.sort; render(); } });
-$('#refresh').addEventListener('click', () => load());
+$('#refresh').addEventListener('click', () => { if (!sheetBusy) load(); });
 $('#selClear').addEventListener('click', () => { state.selected.clear(); render(); });
 $('#selGo').addEventListener('click', () => openConfirm([...state.selected]));
+$('#openSettings').addEventListener('click', () => openSettings());
 
 const grid = $('#grid');
 grid.addEventListener('click', (e) => {
@@ -242,6 +303,7 @@ grid.addEventListener('click', (e) => {
   if (!card) return;
   const key = card.dataset.key;
   const item = state.byKey.get(key);
+  if (!item) return;
   if (e.target.closest('[data-check]') || ((e.ctrlKey || e.metaKey) && !item.protected) || (state.selected.size && !item.protected)) {
     if (item.protected) return;
     if (state.selected.has(key)) state.selected.delete(key); else state.selected.add(key);
@@ -252,7 +314,7 @@ grid.addEventListener('click', (e) => {
   openDetails(key);
 });
 grid.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && e.target.classList.contains('card')) openDetails(e.target.dataset.key);
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('card')) { e.preventDefault(); openDetails(e.target.dataset.key); }
 });
 // reflexia luminii urmărește mouse-ul
 grid.addEventListener('pointermove', (e) => {
@@ -264,14 +326,16 @@ grid.addEventListener('pointermove', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); $('#search').focus(); $('#search').select(); }
+  const sheetOpen = !$('#sheetWrap').hidden;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); if (!sheetOpen) { $('#search').focus(); $('#search').select(); } }
   else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'r') { e.preventDefault(); if (!sheetBusy) load(); }
-  else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && document.activeElement.tagName !== 'INPUT' && $('#sheetWrap').hidden) {
+  else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && document.activeElement.tagName !== 'INPUT' && !sheetOpen) {
     e.preventDefault();
+    if (state.loading) return;
     visibleItems().filter((i) => !i.protected).forEach((i) => state.selected.add(i.key));
     render();
   } else if (e.key === 'Escape') {
-    if (!$('#sheetWrap').hidden) closeSheet();
+    if (sheetOpen) closeSheet();
     else if (state.selected.size) { state.selected.clear(); render(); }
     else if (state.q) { state.q = ''; $('#search').value = ''; render(); }
   }
@@ -279,21 +343,26 @@ document.addEventListener('keydown', (e) => {
 
 $('#cleanFlatpak').addEventListener('click', async () => {
   const b = $('#cleanFlatpak');
+  const label = b.querySelector('span');
   b.disabled = true;
-  b.querySelector('span').textContent = 'Se curăță…';
+  label.textContent = t('cleaning');
   try {
     const r = await api.cleanFlatpak();
-    toast(r.nothing ? 'Nu există runtime-uri Flatpak nefolosite' : `Am eliberat spațiu: ${r.removed || 'câteva'} runtime-uri eliminate`);
+    toast(r.nothing ? t('flatpakNothing') : t('flatpakFreed', r.removed));
     if (!r.nothing) load({ quiet: true });
-  } catch { toast('Curățarea Flatpak a eșuat', 'err'); }
+  } catch { toast(t('flatpakFailed'), 'err'); }
   b.disabled = false;
-  b.querySelector('span').textContent = 'Curăță Flatpak nefolosite';
+  label.textContent = t('cleanFlatpak');
 });
 
 // ------------------------------------------------------------ foaia (detalii → confirmare → progres → gata)
 let sheetBusy = false;
+let sheetKind = null;
+let closeTimer = null;
 const sheet = $('#sheet');
-function openSheet(html) {
+function openSheet(html, kind = 'app') {
+  clearTimeout(closeTimer);
+  sheetKind = kind;
   sheet.innerHTML = html;
   const wrap = $('#sheetWrap');
   wrap.classList.remove('closing');
@@ -303,24 +372,30 @@ function closeSheet() {
   if (sheetBusy) return;
   const wrap = $('#sheetWrap');
   wrap.classList.add('closing');
-  setTimeout(() => { wrap.hidden = true; wrap.classList.remove('closing'); }, 190);
+  clearTimeout(closeTimer);
+  closeTimer = setTimeout(() => { wrap.hidden = true; wrap.classList.remove('closing'); sheetKind = null; }, 190);
 }
 $('#sheetWrap').addEventListener('mousedown', (e) => { if (e.target.id === 'sheetWrap') closeSheet(); });
-sheet.addEventListener('click', (e) => {
+sheet.addEventListener('click', async (e) => {
   const a = e.target.closest('[data-act]');
-  if (!a) return;
+  if (!a || a.disabled) return;
   const act = a.dataset.act;
   if (act === 'close') closeSheet();
   else if (act === 'folder') api.showInFolder(a.dataset.path);
   else if (act === 'uninstall') openConfirm(JSON.parse(a.dataset.keys));
   else if (act === 'confirm') runUninstall(JSON.parse(a.dataset.keys));
+  else if (act === 'lang') { await setLanguage(a.dataset.lang); openSettings(); }
+  else if (act === 'bg-pick') pickBackground();
+  else if (act === 'bg-clear') clearBackground();
+  else if (act === 'reset') resetAppearance();
 });
 
 function head(item, extra = '') {
-  return `<button class="sheet-x" data-act="close" aria-label="Închide">${I.x}</button>
+  const k = KIND[item.kind] || KIND.shortcut;
+  return `<button class="sheet-x" data-act="close" aria-label="${esc(t('close'))}">${I.x}</button>
   <div class="sheet-head">${iconHtml(item)}<div style="min-width:0">
     <h2>${esc(item.name)}</h2><p>${esc(item.description || '')}</p>
-    <span class="badge ${KIND[item.kind].cls}">${KIND[item.kind].label}</span> ${extra}
+    <span class="badge ${k.cls}">${esc(k.label())}</span> ${extra}
   </div></div>`;
 }
 
@@ -328,29 +403,27 @@ function openDetails(key) {
   const it = state.byKey.get(key);
   if (!it) return;
   const rows = [
-    ['Sursă', it.source],
-    ['Versiune', it.version],
-    ['Mărime', humanSize(it.size)],
-    [it.kind === 'rpm' ? 'Instalat la' : 'Data', fmtDate(it.installed)],
-    ['Pachet', it.pkg],
-    ['ID Flatpak', it.appId],
-    ['Instalare', it.installation ? (it.installation === 'user' ? 'Doar pentru tine' : 'Pentru tot sistemul') : ''],
-    ['Snap', it.snap],
-    ['Locație', it.location],
-    ['Producător', it.kind === 'rpm' ? it.vendor : ''],
-    ['Include', (it.extraNames || []).join(', ')],
+    [t('rowSource'), it.source],
+    [t('rowVersion'), it.version],
+    [t('rowSize'), humanSize(it.size)],
+    [it.kind === 'rpm' ? t('rowInstalledAt') : t('rowDate'), fmtDate(it.installed)],
+    [t('rowPackage'), it.pkg],
+    [t('rowFlatpakId'), it.appId],
+    [t('rowInstall'), it.installation ? (it.installation === 'user' ? t('installUser') : t('installSystem')) : ''],
+    [t('rowSnap'), it.snap],
+    [t('rowLocation'), it.location],
+    [t('rowVendor'), it.kind === 'rpm' ? it.vendor : ''],
+    [t('rowIncludes'), (it.extraNames || []).join(', ')],
   ].filter(([, v]) => v);
-  const lockNote = it.protected
-    ? `<div class="note warn">${I.lock}<div>Această componentă e esențială pentru Fedora. Dacă ar fi ștearsă, sistemul ar putea să nu mai pornească, așa că dezinstalarea e blocată.</div></div>` : '';
-  const sysNote = it.system && !it.protected
-    ? `<div class="note warn">${I.warn}<div>E un pachet de sistem. Alte programe s-ar putea baza pe el. Înainte de dezinstalare îți arăt tot ce s-ar elimina împreună cu el.</div></div>` : '';
+  const lockNote = it.protected ? `<div class="note warn">${I.lock}<div>${esc(t('lockNote'))}</div></div>` : '';
+  const sysNote = it.system && !it.protected ? `<div class="note warn">${I.warn}<div>${esc(t('sysNote'))}</div></div>` : '';
   openSheet(`${head(it)}
     <div class="sheet-body">${lockNote}${sysNote}
       <div class="info">${rows.map(([k, v]) => `<div class="k">${esc(k)}</div><div class="v">${esc(v)}</div>`).join('')}</div>
     </div>
     <div class="sheet-foot">
-      ${it.location ? `<button class="btn plain" data-act="folder" data-path="${esc(it.location)}">${I.folder} Arată în Fișiere</button>` : ''}
-      <button class="btn danger" data-act="uninstall" data-keys='${esc(JSON.stringify([it.key]))}' ${it.protected ? 'disabled' : ''}>${I.trash} Dezinstalează…</button>
+      ${it.location ? `<button class="btn plain" data-act="folder" data-path="${esc(it.location)}">${I.folder} ${esc(t('showInFiles'))}</button>` : ''}
+      <button class="btn danger" data-act="uninstall" data-keys='${esc(JSON.stringify([it.key]))}' ${it.protected ? 'disabled' : ''}>${I.trash} ${esc(t('uninstallDots'))}</button>
     </div>`);
 }
 
@@ -360,54 +433,60 @@ function statusView(inner) {
 
 async function openConfirm(keys) {
   const items = keys.map((k) => state.byKey.get(k)).filter(Boolean);
-  if (!items.length) return;
+  if (!items.length || sheetBusy) return;
+  keys = items.map((i) => i.key);
   const one = items.length === 1 ? items[0] : null;
-  const title = one ? `Dezinstalezi ${esc(one.name)}?` : `Dezinstalezi ${plural(items.length, 'aplicație', 'aplicații')}?`;
+  const title = one ? esc(t('confirmOne', one.name)) : esc(t('confirmMany', items.length));
   const needsRpm = items.some((i) => i.kind === 'rpm');
   sheetBusy = true;
-  openSheet(statusView(`<div class="ring"></div><h3>Pregătesc dezinstalarea…</h3>
-    <p>${needsRpm ? 'Îți va cere parola ca să verific ce pachete se elimină.' : 'Verific ce fișiere și setări rămân în urmă.'}</p>`));
+  openSheet(statusView(`<div class="ring"></div><h3>${esc(t('preparing'))}</h3>
+    <p>${esc(needsRpm ? t('preparingRpm') : t('preparingOther'))}</p>`));
   let p;
-  try { p = await api.preview(keys); } catch (e) { p = { blocked: 'A apărut o eroare neașteptată.', raw: String(e) }; }
+  try { p = await api.preview(keys); } catch (e) { p = { blocked: t('unexpected'), raw: String(e) }; }
   sheetBusy = false;
 
   if (p.blocked) {
-    openSheet(`${statusView(`<div class="done-mark bad">${I.x}</div><h3>${p.authFailed ? 'Anulat' : 'Nu se poate dezinstala'}</h3><p>${esc(p.blocked)}</p>
-      ${p.raw ? `<details class="log"><summary>Detalii tehnice</summary><pre>${esc(p.raw)}</pre></details>` : ''}`)}
-      <div class="sheet-foot"><button class="btn plain" data-act="close">Închide</button></div>`);
+    openSheet(`${statusView(`<div class="done-mark bad">${I.x}</div><h3>${esc(p.authFailed ? t('cancelled') : t('cannotUninstall'))}</h3><p>${esc(p.blocked)}</p>
+      ${p.raw ? `<details class="log"><summary>${esc(t('techDetails'))}</summary><pre>${esc(p.raw)}</pre></details>` : ''}`)}
+      <div class="sheet-foot"><button class="btn plain" data-act="close">${esc(t('close'))}</button></div>`);
     return;
   }
+  const sections = p.sections || [];
+  const leftovers = p.leftovers || [];
+  const warnings = p.warnings || [];
 
-  const groups = p.sections.map((s) => `<div class="group"><h4>${esc(s.title)}</h4><div class="rows">
+  const groups = sections.map((s) => `<div class="group"><h4>${esc(s.title)}</h4><div class="rows">
     ${s.lines.slice(0, 60).map((l) => `<div class="row"><div class="grow"><div class="t">${esc(l.text)}</div>${l.sub ? `<div class="s">${esc(l.sub)}</div>` : ''}</div>${l.size ? `<div class="sz">${esc(l.size)}</div>` : ''}</div>`).join('')}
-    ${s.lines.length > 60 ? `<div class="row"><div class="s">…și încă ${s.lines.length - 60}</div></div>` : ''}
+    ${s.lines.length > 60 ? `<div class="row"><div class="s">${esc(t('andMore', s.lines.length - 60))}</div></div>` : ''}
   </div></div>`).join('');
 
-  const warns = p.warnings.map((w) => `<div class="note warn">${I.warn}<div>${esc(w)}</div></div>`).join('');
+  const warns = warnings.map((w) => `<div class="note warn">${I.warn}<div>${esc(w)}</div></div>`).join('');
 
-  const left = p.leftovers.length ? `<div class="group"><h4>Date rămase în folderul tău</h4><div class="rows">
-      <div class="row"><div class="grow"><div class="t">Șterge și setările și datele</div><div class="s">Recomandat dacă nu mai folosești aplicația. Ajung în Coș, de unde le poți recupera.</div></div>
+  const left = leftovers.length ? `<div class="group"><h4>${esc(t('leftoversTitle'))}</h4><div class="rows">
+      <div class="row"><div class="grow"><div class="t">${esc(t('leftoversAll'))}</div><div class="s">${esc(t('leftoversHint'))}</div></div>
       <input type="checkbox" class="toggle" id="allLeft"></div>
-      ${p.leftovers.map((l, i) => `<div class="row"><label><input type="checkbox" class="cbox left" data-i="${i}">
+      ${leftovers.map((l, i) => `<div class="row"><label><input type="checkbox" class="cbox left" data-i="${i}">
         <div class="grow"><div class="t">${esc(l.label)}${items.length > 1 ? ` · ${esc(l.app)}` : ''}</div><div class="s">${esc(l.path)}</div></div>
-        <div class="sz">${esc(l.sizeText || '')}</div></label></div>`).join('')}
+        <div class="sz">${esc(humanSize(l.size) || l.sizeText || '')}</div></label></div>`).join('')}
     </div></div>` : '';
 
   const trashNote = items.some((i) => ['appimage', 'manual', 'shortcut'].includes(i.kind))
-    ? `<div class="note">${I.undo}<div>Fișierele din folderul tău personal sunt mutate în Coș, nu șterse definitiv.</div></div>` : '';
+    ? `<div class="note">${I.undo}<div>${esc(t('trashNote'))}</div></div>` : '';
 
-  openSheet(`${one ? head(one) : `<button class="sheet-x" data-act="close">${I.x}</button><div class="sheet-head"><div class="app-icon"><div class="fallback-icon" style="background:linear-gradient(160deg,#ff6b6b,#ff3b30)">${I.trash.replace('<svg', '<svg style="width:34px;height:34px;stroke:#fff"')}</div></div><div><h2>${title}</h2><p>${esc(items.map((i) => i.name).join(', '))}</p></div></div>`}
+  const footLeft = [p.needsPassword ? `${I.lock} ${esc(t('mayAskPassword'))}` : '', p.totalFreed ? esc(t('frees', p.totalFreed)) : ''].filter(Boolean).join(' · ');
+
+  openSheet(`${one ? head(one) : `<button class="sheet-x" data-act="close" aria-label="${esc(t('close'))}">${I.x}</button><div class="sheet-head"><div class="app-icon"><div class="fallback-icon" style="background:linear-gradient(160deg,#ff6b6b,#ff3b30)">${I.trash.replace('<svg', '<svg style="width:34px;height:34px;stroke:#fff"')}</div></div><div><h2>${title}</h2><p>${esc(items.map((i) => i.name).join(', '))}</p></div></div>`}
     <div class="sheet-body">
       ${one ? `<div class="group"><h4 style="font-size:17px;text-transform:none;letter-spacing:-0.01em;color:var(--text)">${title}</h4></div>` : ''}
-      ${warns}${p.raw ? `<details class="log" style="margin-bottom:14px"><summary>Textul complet de la dnf</summary><pre>${esc(p.raw)}</pre></details>` : ''}${groups}${left}${trashNote}
+      ${warns}${p.raw ? `<details class="log" style="margin-bottom:14px"><summary>${esc(t('dnfFull'))}</summary><pre>${esc(p.raw)}</pre></details>` : ''}${groups}${left}${trashNote}
     </div>
     <div class="sheet-foot">
-      <div class="left">${p.needsPassword ? `${I.lock} Îți poate cere parola` : ''}${p.totalFreed ? ` · eliberează ${esc(p.totalFreed)}` : ''}</div>
-      <button class="btn plain" data-act="close">Renunță</button>
-      <button class="btn danger" data-act="confirm" data-keys='${esc(JSON.stringify(keys))}'>${I.trash} Dezinstalează</button>
+      <div class="left">${footLeft}</div>
+      <button class="btn plain" data-act="close">${esc(t('giveUp'))}</button>
+      <button class="btn danger" data-act="confirm" data-keys='${esc(JSON.stringify(keys))}'>${I.trash} ${esc(t('uninstall'))}</button>
     </div>`);
 
-  sheet._leftovers = p.leftovers;
+  sheet._leftovers = leftovers;
   const all = sheet.querySelector('#allLeft');
   if (all) {
     const boxes = [...sheet.querySelectorAll('.cbox.left')];
@@ -417,40 +496,123 @@ async function openConfirm(keys) {
 }
 
 async function runUninstall(keys) {
+  if (sheetBusy) return;
   const leftovers = [...sheet.querySelectorAll('.cbox.left:checked')].map((b) => sheet._leftovers[+b.dataset.i].path);
   const items = keys.map((k) => state.byKey.get(k)).filter(Boolean);
-  const label = items.length === 1 ? items[0].name : plural(items.length, 'aplicație', 'aplicații');
+  const label = items.length === 1 ? items[0].name : t('nApps', items.length);
   sheetBusy = true;
-  openSheet(statusView(`<div class="ring"></div><h3>Se dezinstalează ${esc(label)}</h3><p id="prog">Începem…</p>`));
+  openSheet(statusView(`<div class="ring"></div><h3>${esc(t('uninstalling', label))}</h3><p id="prog">${esc(t('starting'))}</p>`));
   let r;
   try { r = await api.uninstall(keys, { leftovers }); } catch (e) { r = { ok: false, log: String(e) }; }
   sheetBusy = false;
 
   if (r.cancelled) {
-    openSheet(`${statusView(`<div class="done-mark bad">${I.x}</div><h3>Anulat</h3><p>Parola nu a fost introdusă, așa că nu s-a dezinstalat nimic.</p>`)}
-      <div class="sheet-foot"><button class="btn plain" data-act="close">Închide</button></div>`);
+    openSheet(`${statusView(`<div class="done-mark bad">${I.x}</div><h3>${esc(t('cancelled'))}</h3><p>${esc(t('cancelledText'))}</p>`)}
+      <div class="sheet-foot"><button class="btn plain" data-act="close">${esc(t('close'))}</button></div>`);
     return;
   }
   if (r.ok) {
-    openSheet(`${statusView(`<div class="done-mark">${I.check}</div><h3>Gata!</h3><p>${esc(label)} ${items.length === 1 ? 'a fost dezinstalată' : 'au fost dezinstalate'}.</p>`)}
-      <div class="sheet-foot"><button class="btn primary" data-act="close">Gata</button></div>`);
-    toast(`${label} — dezinstalat`);
+    openSheet(`${statusView(`<div class="done-mark">${I.check}</div><h3>${esc(t('doneTitle'))}</h3><p>${esc(items.length === 1 ? t('doneOne', label) : t('doneMany', label))}</p>`)}
+      <div class="sheet-foot"><button class="btn primary" data-act="close">${esc(t('done'))}</button></div>`);
+    toast(t('doneToast', label));
   } else {
-    openSheet(`${statusView(`<div class="done-mark bad">${I.x}</div><h3>Nu a mers complet</h3>
-      <p>${r.failed && r.failed.length ? `Nu am putut dezinstala: ${esc(r.failed.join(', '))}.` : 'A apărut o eroare.'}</p>
-      <details class="log"><summary>Detalii tehnice</summary><pre>${esc(r.log || '')}</pre></details>`)}
-      <div class="sheet-foot"><button class="btn plain" data-act="close">Închide</button></div>`);
+    openSheet(`${statusView(`<div class="done-mark bad">${I.x}</div><h3>${esc(t('partialTitle'))}</h3>
+      <p>${esc(r.failed && r.failed.length ? t('partialFailed', r.failed.join(', ')) : t('partialError'))}</p>
+      <details class="log"><summary>${esc(t('techDetails'))}</summary><pre>${esc(r.log || '')}</pre></details>`)}
+      <div class="sheet-foot"><button class="btn plain" data-act="close">${esc(t('close'))}</button></div>`);
   }
   for (const k of keys) state.selected.delete(k);
   await load({ quiet: true });
 }
 
-api.onProgress((t) => { const el = document.getElementById('prog'); if (el) el.textContent = t; });
+api.onProgress((text) => { const el = document.getElementById('prog'); if (el) el.textContent = text; });
+
+// ------------------------------------------------------------ foaia de setări
+function sliderHtml(id, value, title, hint, left, right) {
+  return `<div class="group"><h4>${esc(title)}</h4><div class="rows"><div class="row slider-row">
+    <div class="grow">
+      <div class="slider-top"><span class="s">${esc(hint)}</span><output id="${id}Out">${value}%</output></div>
+      <input type="range" class="range" id="${id}" min="0" max="100" step="1" value="${value}" style="--p:${value}%">
+      <div class="slider-ends"><span>${esc(left)}</span><span>${esc(right)}</span></div>
+    </div></div></div></div>`;
+}
+
+function openSettings() {
+  if (sheetBusy) return;
+  const hasImg = !!settings.bgImage;
+  const preview = hasImg
+    ? `<div class="bg-thumb" style="background-image:url(&quot;${esc(fileUrl(settings.bgImage))}&quot;)"></div>`
+    : '<div class="bg-thumb default"></div>';
+  openSheet(`<button class="sheet-x" data-act="close" aria-label="${esc(t('close'))}">${I.x}</button>
+    <div class="sheet-head"><div class="app-icon"><div class="fallback-icon" style="background:linear-gradient(160deg,#d58bff,#5e9bff)">${I.image.replace('<svg', '<svg style="width:34px;height:34px;stroke:#fff"')}</div></div>
+      <div><h2>${esc(t('setTitle'))}</h2><p>${esc(t('setSub'))}</p></div></div>
+    <div class="sheet-body">
+      <div class="group"><h4>${esc(t('setLanguage'))}</h4>
+        <div class="segmented lang-seg">
+          <button data-act="lang" data-lang="ro" class="${settings.lang === 'ro' ? 'on' : ''}">Română</button>
+          <button data-act="lang" data-lang="en" class="${settings.lang === 'en' ? 'on' : ''}">English</button>
+        </div>
+      </div>
+      <div class="group"><h4>${esc(t('setBackground'))}</h4><div class="rows"><div class="row bg-row">
+        ${preview}
+        <div class="grow"><div class="t">${esc(hasImg ? t('setBgCustom') : t('setBgDefault'))}</div></div>
+        <button class="btn plain small" data-act="bg-pick">${I.image} ${esc(hasImg ? t('setChange') : t('setChoose'))}</button>
+        ${hasImg ? `<button class="btn plain small" data-act="bg-clear">${I.trash} ${esc(t('setRemove'))}</button>` : ''}
+      </div></div></div>
+      ${sliderHtml('bgOpacity', settings.bgOpacity, t('setBgOpacity'), t('setBgOpacityHint'), t('setFaint'), t('setStrong'))}
+      ${sliderHtml('cardOpacity', settings.cardOpacity, t('setCardOpacity'), t('setCardOpacityHint'), t('setTransparent'), t('setMatte'))}
+    </div>
+    <div class="sheet-foot">
+      <button class="btn plain" data-act="reset">${I.reset} ${esc(t('setReset'))}</button>
+      <button class="btn primary" data-act="close">${esc(t('done'))}</button>
+    </div>`, 'settings');
+
+  for (const id of ['bgOpacity', 'cardOpacity']) {
+    const input = sheet.querySelector(`#${id}`);
+    input.addEventListener('input', () => {
+      settings[id] = clampPct(input.value, DEFAULTS[id]);
+      input.style.setProperty('--p', `${settings[id]}%`);
+      sheet.querySelector(`#${id}Out`).textContent = `${settings[id]}%`;
+      applyAppearance();
+    });
+    input.addEventListener('change', saveSettings);
+  }
+}
+
+async function pickBackground() {
+  let r;
+  try { r = await api.pickBackground(t('pickTitle')); } catch { r = { error: true }; }
+  if (!r) return; // fereastra de alegere a fost închisă
+  if (r.error || !r.path) { toast(t('pickFailed'), 'err'); return; }
+  settings.bgImage = r.path;
+  saveSettings();
+  applyAppearance();
+  if (sheetKind === 'settings') openSettings();
+}
+
+async function clearBackground() {
+  settings.bgImage = null;
+  saveSettings();
+  applyAppearance();
+  try { await api.clearBackground(); } catch { /* nimic */ }
+  if (sheetKind === 'settings') openSettings();
+}
+
+async function resetAppearance() {
+  const hadImage = !!settings.bgImage;
+  settings = { ...settings, ...DEFAULTS };
+  saveSettings();
+  applyAppearance();
+  if (hadImage) { try { await api.clearBackground(); } catch { /* nimic */ } }
+  openSettings();
+}
 
 // ------------------------------------------------------------ pornire
 (async () => {
+  applyStaticTexts();
+  applyAppearance();
   document.querySelectorAll('#themeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.theme === themeMode));
-  const r = await api.setTheme(themeMode);
+  const [r] = await Promise.all([api.setTheme(themeMode), api.setLang(settings.lang)]);
   applyTheme(r.dark);
   load();
 })();

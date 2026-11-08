@@ -4,6 +4,7 @@ const {
   makeContext, readdirSafe, statSafe, exists, pool, parseHumanSize, dirSize, fsp,
 } = require('./util');
 const { parseDesktopFile, execProgram, buildIconIndex, resolveIcon } = require('./desktop');
+const { t, getLang } = require('./i18n');
 
 const SELF_PKG = 'dezinstalator';
 
@@ -23,17 +24,20 @@ const isProtected = (name) => PROTECTED.some((r) => r.test(name));
 
 const FEDORA_REPOS = /^(fedora|updates|updates-testing|fedora-cisco-openh264|anaconda|@System|System)$/;
 
+// Repo-uri temporare (ex. din instalatorul Fedora) au ca nume un hash; acolo contează producătorul.
+const HASH_REPO = /^[0-9a-f]{24,}$/i;
+
 function rpmSourceLabel(fromRepo, vendor) {
-  if (fromRepo) {
-    if (FEDORA_REPOS.test(fromRepo)) return { label: 'Fedora', external: false };
-    if (fromRepo === '@commandline' || fromRepo === 'commandline') return { label: 'Fișier .rpm descărcat', external: true };
-    if (/^rpmfusion/.test(fromRepo)) return { label: 'RPM Fusion', external: true, fusion: true };
-    if (/^copr:/.test(fromRepo)) return { label: `COPR ${fromRepo.split(':').slice(-2).join('/')}`, external: true };
-    return { label: `Repo ${fromRepo}`, external: true };
+  if (fromRepo && !HASH_REPO.test(fromRepo)) {
+    if (FEDORA_REPOS.test(fromRepo)) return { label: t('srcFedora'), external: false };
+    if (fromRepo === '@commandline' || fromRepo === 'commandline') return { label: t('srcCommandline'), external: true };
+    if (/^rpmfusion/.test(fromRepo)) return { label: t('srcFusion'), external: true, fusion: true };
+    if (/^copr:/.test(fromRepo)) return { label: t('srcCopr', fromRepo.split(':').slice(-2).join('/')), external: true };
+    return { label: t('srcRepo', fromRepo), external: true };
   }
-  if (vendor === 'Fedora Project') return { label: 'Fedora', external: false };
-  if (/RPM Fusion/i.test(vendor)) return { label: 'RPM Fusion', external: true, fusion: true };
-  if (!vendor || vendor === '(none)') return { label: 'Sursă externă', external: true };
+  if (vendor === 'Fedora Project') return { label: t('srcFedora'), external: false };
+  if (/RPM Fusion/i.test(vendor)) return { label: t('srcFusion'), external: true, fusion: true };
+  if (!vendor || vendor === '(none)') return { label: t('srcExternal'), external: true };
   return { label: vendor, external: true };
 }
 
@@ -157,7 +161,7 @@ async function scanFlatpak(ctx, desktop, iconIndex) {
       size: parseHumanSize(size),
       installed: null,
       icon: await resolveIcon(iconIndex, (entry && entry.icon) || appId),
-      source: `Flatpak · ${origin || 'necunoscut'}`,
+      source: t('srcFlatpak', origin),
       isApp: true,
       system: false,
       protected: false,
@@ -198,7 +202,7 @@ async function scanSnap(ctx, desktop, iconIndex) {
       kind: 'snap',
       snap: name,
       name: (entry && entry.name) || name,
-      description: (entry && entry.comment) || (publisher ? `Publicat de ${publisher.replace(/\*$/, '')}` : ''),
+      description: (entry && entry.comment) || (publisher && publisher !== '-' ? t('publishedBy', publisher.replace(/[*✓✪]+$/, '')) : ''),
       version: version || '',
       size: size || null,
       installed: null,
@@ -279,7 +283,7 @@ async function scanAppImages(ctx, desktop, iconIndex) {
       kind: 'appimage',
       path: file,
       name: (main && main.name) || prettyAppImageName(file),
-      description: (main && main.comment) || 'Aplicație portabilă (AppImage)',
+      description: (main && main.comment) || t('portable'),
       version: (/[-_ ]v?(\d+(?:\.\d+)+)/.exec(base) || [])[1] || '',
       size: st ? st.size : null,
       installed: st ? st.mtimeMs : null,
@@ -364,7 +368,7 @@ async function scanManual(ctx, desktop, iconIndex, rpmSysEntries) {
       const st = await statSafe(prog.real);
       items.push({
         key: `appimage:${prog.real}`, kind: 'appimage', path: prog.real,
-        name: e.name, description: e.comment || 'Aplicație portabilă (AppImage)', version: '',
+        name: e.name, description: e.comment || t('portable'), version: '',
         size: st ? st.size : null, installed: st ? st.mtimeMs : null, icon, iconName: e.icon,
         source: 'AppImage', isApp: true, system: false, protected: false,
         desktopFiles: [e.file], location: prog.real,
@@ -381,14 +385,14 @@ async function scanManual(ctx, desktop, iconIndex, rpmSysEntries) {
         kind: 'shortcut',
         name: e.name,
         description: broken
-          ? 'Scurtătură către un program care nu mai există'
-          : web ? `Aplicație web (${owner || 'browser'})` : `Scurtătură către ${owner || program}`,
+          ? t('brokenShortcut')
+          : web ? t('webApp', owner) : t('shortcutTo', owner || program),
         version: '',
         size: null,
         installed: (await statSafe(e.file))?.mtimeMs || null,
         icon,
         iconName: e.icon,
-        source: broken ? 'Scurtătură ruptă' : web ? 'Aplicație web' : 'Scurtătură',
+        source: broken ? t('srcBroken') : web ? t('srcWeb') : t('srcShortcut'),
         isApp: true,
         system: false,
         protected: false,
@@ -411,13 +415,13 @@ async function scanManual(ctx, desktop, iconIndex, rpmSysEntries) {
       key: `manual:${groupKey}`,
       kind: 'manual',
       name: e.name,
-      description: e.comment || 'Program instalat manual',
+      description: e.comment || t('manualDesc'),
       version: '',
       size: null,
       installed: st ? st.mtimeMs : null,
       icon,
       iconName: e.icon,
-      source: installDir && installDir.startsWith(ctx.p('/opt')) ? 'Instalat manual în /opt' : 'Instalat manual',
+      source: installDir && installDir.startsWith(ctx.p('/opt') + path.sep) ? t('srcManualOpt') : t('srcManual'),
       isApp: true,
       system: false,
       protected: false,
@@ -441,9 +445,9 @@ async function scanManual(ctx, desktop, iconIndex, rpmSysEntries) {
       key: `manual:${full}`,
       kind: 'manual',
       name: d.name,
-      description: 'Folder de program în /opt, fără scurtătură în meniu',
+      description: t('optOrphan'),
       version: '', size: null, installed: st ? st.mtimeMs : null, icon: null,
-      source: 'Instalat manual în /opt', isApp: false, system: false, protected: false,
+      source: t('srcManualOpt'), isApp: false, system: false, protected: false,
       desktopFiles: [], installDir: full, extraPaths: [], location: full,
     };
     byDir.set(full, item);
@@ -481,7 +485,7 @@ async function scanAll(overrides) {
   const appimages = await scanAppImages(ctx, desktop, iconIndex);
   const manual = await scanManual(ctx, desktop, iconIndex, rpm.sysEntries || []);
   const items = [...(rpm.items || []), ...flatpak.items, ...snap.items, ...appimages, ...manual];
-  items.sort((a, b) => a.name.localeCompare(b.name, 'ro', { sensitivity: 'base' }));
+  items.sort((a, b) => a.name.localeCompare(b.name, getLang(), { sensitivity: 'base' }));
   return {
     items,
     tools: { rpm: (rpm.items || []).length > 0, flatpak: flatpak.available, snap: snap.available },

@@ -2,11 +2,9 @@
 const path = require('path');
 const fs = require('fs');
 const { makeContext, readdirSafe, exists, dirSize, pool, humanSize, run } = require('./util');
+const { t } = require('./i18n');
 
-const KIND_LABEL = {
-  rpm: 'Pachete RPM', flatpak: 'Aplicații Flatpak', snap: 'Aplicații Snap',
-  appimage: 'AppImage', manual: 'Programe instalate manual', shortcut: 'Scurtături',
-};
+const kindLabel = (k) => t(`kind_${k}`);
 
 // Foldere care nu sunt niciodată „resturi” ale unei aplicații anume
 const SHARED_DIRS = new Set([
@@ -56,7 +54,7 @@ function parseDnfRemove(out) {
     }
     if (/^\S/.test(line)) { if (!/^Package\s/.test(line)) section = null; continue; }
     const m = /^\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.+?)\s*$/.exec(line);
-    if (section && m) pkgs.push({ name: m[1], arch: m[2], version: m[3], repo: m[4], size: m[5], dependency: section === 'dep' });
+    if (section && m) pkgs.push({ name: m[1], arch: m[2], version: m[3].replace(/^0:/, ''), repo: m[4], size: m[5].replace(/\s+/g, ' '), dependency: section === 'dep' });
   }
   const f = /After this operation,?\s+(.+?)\s+will be freed/i.exec(out) || /Freed space:\s*(.+)/i.exec(out)
     || /remove\s+([\d.,]+\s*\S+)\)/i.exec(out);
@@ -88,11 +86,11 @@ async function findLeftovers(d, item) {
 
   const out = [];
   const roots = [
-    { dir: ctx.hp('.config'), label: 'Setări' },
-    { dir: ctx.hp('.local/share'), label: 'Date' },
-    { dir: ctx.hp('.local/state'), label: 'Stare' },
-    { dir: ctx.hp('.cache'), label: 'Cache' },
-    { dir: ctx.home, label: 'Folder ascuns', dot: true },
+    { dir: ctx.hp('.config'), label: t('leftSettings') },
+    { dir: ctx.hp('.local/share'), label: t('leftData') },
+    { dir: ctx.hp('.local/state'), label: t('leftState') },
+    { dir: ctx.hp('.cache'), label: t('leftCache') },
+    { dir: ctx.home, label: t('leftHidden'), dot: true },
   ];
   for (const r of roots) {
     for (const e of await readdirSafe(r.dir)) {
@@ -104,7 +102,7 @@ async function findLeftovers(d, item) {
     }
   }
   if (item.dataDir && (await exists(item.dataDir))) {
-    out.unshift({ path: item.dataDir, label: item.kind === 'flatpak' ? 'Datele aplicației Flatpak' : 'Datele aplicației Snap', special: item.kind });
+    out.unshift({ path: item.dataDir, label: item.kind === 'flatpak' ? t('leftFlatpak') : t('leftSnap'), special: item.kind });
   }
   await pool(out, 4, async (l) => { l.size = await dirSize(ctx, l.path); l.sizeText = humanSize(l.size); });
   return out;
@@ -142,7 +140,7 @@ async function preview(items, overrides) {
   const res = { sections: [], leftovers: [], warnings: [], blocked: null, needsPassword: false, totalFreed: null };
   const blockedProt = items.filter((i) => i.protected);
   if (blockedProt.length) {
-    res.blocked = `${blockedProt.map((i) => i.name).join(', ')} ${blockedProt.length > 1 ? 'sunt componente esențiale' : 'este o componentă esențială'} a sistemului și nu poate fi dezinstalat${blockedProt.length > 1 ? 'e' : ''}.`;
+    res.blocked = t('blockedProtected', blockedProt.map((i) => i.name).join(', '), blockedProt.length > 1);
     return res;
   }
 
@@ -152,15 +150,15 @@ async function preview(items, overrides) {
   if (byKind.rpm) {
     res.needsPassword = true;
     const r = await d.root(['rpm-preview', ...byKind.rpm.map((i) => i.pkg)]);
-    if (AUTH_FAILED(r)) { res.blocked = 'Parola nu a fost introdusă, așa că nu am putut verifica ce se va elimina.'; res.authFailed = true; return res; }
+    if (AUTH_FAILED(r)) { res.blocked = t('authPreview'); res.authFailed = true; return res; }
     const parsed = parseDnfRemove(r.stdout + '\n' + r.stderr);
     if (!parsed.pkgs.length && !parsed.problem && r.code === 0) {
       // n-am putut citi tabelul (format nou de dnf?) — arătăm ce s-a cerut și textul brut
-      res.sections.push({ title: KIND_LABEL.rpm, lines: byKind.rpm.map((i) => ({ text: i.pkg, sub: i.version })) });
-      res.warnings.push('Nu am putut citi lista detaliată de la dnf. Verifică mai jos textul complet înainte să continui.');
+      res.sections.push({ title: kindLabel('rpm'), lines: byKind.rpm.map((i) => ({ text: i.pkg, sub: i.version })) });
+      res.warnings.push(t('dnfUnreadable'));
       res.raw = (r.stdout + r.stderr).trim();
     } else if (!parsed.pkgs.length) {
-      res.blocked = parsed.problem || 'dnf nu a putut pregăti dezinstalarea.';
+      res.blocked = parsed.problem || t('dnfFailed');
       res.raw = (r.stdout + r.stderr).trim();
       return res;
     }
@@ -168,34 +166,36 @@ async function preview(items, overrides) {
       const main = parsed.pkgs.filter((p) => !p.dependency);
       const deps = parsed.pkgs.filter((p) => p.dependency);
       res.sections.push({
-        title: KIND_LABEL.rpm,
+        title: kindLabel('rpm'),
         lines: main.map((p) => ({ text: p.name, sub: `${p.version} · ${p.repo}`, size: p.size })),
       });
       if (deps.length) {
         res.sections.push({
-          title: 'Dependențe care nu mai sunt folosite',
+          title: t('unusedDeps'),
           lines: deps.map((p) => ({ text: p.name, sub: p.version, size: p.size })),
         });
       }
       const requested = new Set(byKind.rpm.map((i) => i.pkg));
       const extraMain = main.filter((p) => !requested.has(p.name));
       if (extraMain.length) {
-        res.warnings.push(`Se vor elimina și ${extraMain.length} pachete care depind de ce ai ales: ${extraMain.slice(0, 6).map((p) => p.name).join(', ')}${extraMain.length > 6 ? '…' : ''}`);
+        res.warnings.push(t('alsoRemoves', extraMain.length, `${extraMain.slice(0, 6).map((p) => p.name).join(', ')}${extraMain.length > 6 ? '…' : ''}`));
       }
-      if (parsed.pkgs.length > 25) res.warnings.push(`Atenție: se elimină ${parsed.pkgs.length} pachete în total. Verifică lista înainte să continui.`);
+      if (parsed.pkgs.length > 25) res.warnings.push(t('manyPkgs', parsed.pkgs.length));
       if (parsed.freed) res.totalFreed = parsed.freed;
     }
   }
 
   if (byKind.flatpak) {
+    // dezinstalarea unui Flatpak de sistem cere parola prin polkit
+    if (byKind.flatpak.some((i) => i.installation !== 'user')) res.needsPassword = true;
     res.sections.push({
-      title: KIND_LABEL.flatpak,
-      lines: byKind.flatpak.map((i) => ({ text: i.name, sub: `${i.appId} · ${i.installation === 'user' ? 'doar pentru tine' : 'pentru tot sistemul'}`, size: humanSize(i.size) })),
+      title: kindLabel('flatpak'),
+      lines: byKind.flatpak.map((i) => ({ text: i.name, sub: `${i.appId} · ${i.installation === 'user' ? t('onlyYou') : t('wholeSystem')}`, size: humanSize(i.size) })),
     });
   }
   if (byKind.snap) {
     res.needsPassword = true;
-    res.sections.push({ title: KIND_LABEL.snap, lines: byKind.snap.map((i) => ({ text: i.name, sub: i.snap, size: humanSize(i.size) })) });
+    res.sections.push({ title: kindLabel('snap'), lines: byKind.snap.map((i) => ({ text: i.name, sub: i.snap, size: humanSize(i.size) })) });
   }
   for (const kind of ['appimage', 'manual', 'shortcut']) {
     if (!byKind[kind]) continue;
@@ -206,7 +206,7 @@ async function preview(items, overrides) {
         lines.push({ text: path.basename(f), sub: f, size: f === it.installDir || f === it.path ? humanSize(it.size) : '' });
       }
     }
-    res.sections.push({ title: KIND_LABEL[kind], lines });
+    res.sections.push({ title: kindLabel(kind), lines });
   }
 
   for (const it of items) {
@@ -231,7 +231,7 @@ async function uninstall(items, options, progress = () => {}, overrides) {
 
   if (byKind.rpm) {
     const names = byKind.rpm.map((i) => i.pkg);
-    note(`Se dezinstalează ${names.join(', ')}…`);
+    note(t('progRemoving', names.join(', ')));
     const r = await d.root(['rpm-remove', ...names]);
     log.push(r.stdout, r.stderr);
     if (AUTH_FAILED(r)) return { ok: false, cancelled: true, log: log.join('\n') };
@@ -239,7 +239,7 @@ async function uninstall(items, options, progress = () => {}, overrides) {
   }
 
   for (const it of byKind.flatpak || []) {
-    note(`Se dezinstalează ${it.name} (Flatpak)…`);
+    note(t('progRemovingKind', it.name, 'Flatpak'));
     const args = ['uninstall', '-y', '--noninteractive', it.installation === 'user' ? '--user' : '--system'];
     if (it.dataDir && chosen.has(it.dataDir)) { args.push('--delete-data'); chosen.delete(it.dataDir); }
     args.push(it.appId);
@@ -249,9 +249,9 @@ async function uninstall(items, options, progress = () => {}, overrides) {
   }
 
   for (const it of byKind.snap || []) {
-    note(`Se dezinstalează ${it.name} (Snap)…`);
+    note(t('progRemovingKind', it.name, 'Snap'));
+    // --purge nu atinge ~/snap/<nume>; folderul rămâne în „chosen” și ajunge în Coș mai jos
     const purge = it.dataDir && chosen.has(it.dataDir);
-    if (purge) chosen.delete(it.dataDir);
     const r = await d.root(['snap-remove', it.snap, ...(purge ? ['--purge'] : [])]);
     log.push(r.stdout, r.stderr);
     if (AUTH_FAILED(r)) return { ok: false, cancelled: true, log: log.join('\n') };
@@ -260,13 +260,13 @@ async function uninstall(items, options, progress = () => {}, overrides) {
 
   for (const kind of ['appimage', 'manual', 'shortcut']) {
     for (const it of byKind[kind] || []) {
-      note(`Se elimină ${it.name}…`);
+      note(t('progEliminating', it.name));
       const files = await filesFor(d, it);
       const home = files.filter((f) => d.isHome(f));
       const sys = files.filter((f) => !d.isHome(f));
       let ok = true;
       for (const f of home) {
-        try { if (await exists(f)) await d.trash(f); } catch (e) { ok = false; log.push(`Nu am putut muta în Coș ${f}: ${e.message}`); }
+        try { if (await exists(f)) await d.trash(f); } catch (e) { ok = false; log.push(t('trashFailed', f, e.message)); }
       }
       if (sys.length) {
         const r = await d.root(['rm-paths', ...sys]);
@@ -280,9 +280,9 @@ async function uninstall(items, options, progress = () => {}, overrides) {
 
   const rest = [...chosen].filter((p) => d.isHome(p));
   if (rest.length) {
-    note('Se mută în Coș setările și datele rămase…');
+    note(t('progLeftovers'));
     for (const p of rest) {
-      try { if (await exists(p)) await d.trash(p); } catch (e) { log.push(`Nu am putut muta în Coș ${p}: ${e.message}`); }
+      try { if (await exists(p)) await d.trash(p); } catch (e) { log.push(t('trashFailed', p, e.message)); }
     }
   }
 
@@ -291,7 +291,7 @@ async function uninstall(items, options, progress = () => {}, overrides) {
 }
 
 async function cleanUnusedFlatpak(progress = () => {}) {
-  progress('Se caută runtime-uri Flatpak nefolosite…');
+  progress(t('flatpakSearching'));
   const out = [];
   let removed = 0;
   for (const scope of ['--user', '--system']) {

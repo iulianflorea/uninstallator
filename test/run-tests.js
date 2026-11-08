@@ -7,6 +7,7 @@ const path = require('path');
 const scanner = require('../src/scanner');
 const un = require('../src/uninstaller');
 const { splitExec, execProgram, parseDesktopText } = require('../src/desktop');
+const i18n = require('../src/i18n');
 
 let passed = 0;
 const t = async (name, fn) => {
@@ -129,6 +130,28 @@ const fakeRun = async (cmd, args) => {
     assert.strictEqual(r.pkgs.length, 0);
     assert.ok(/protected/.test(r.problem));
   });
+  await t('parseDnfRemove (dnf5): scoate epoca 0: și normalizează mărimea', () => {
+    const r = un.parseDnfRemove('Package Arch Version Repository Size\nRemoving:\n nano  x86_64 0:9.2-1.fc45 fedora  2.9 MiB\nRemoving dependent packages:\n default-editor noarch 0:9.2-1.fc45 fedora  0.0   B\n');
+    assert.strictEqual(r.pkgs.length, 2);
+    assert.strictEqual(r.pkgs[0].version, '9.2-1.fc45');
+    assert.strictEqual(r.pkgs[1].size, '0.0 B');
+    assert.strictEqual(r.pkgs[1].dependency, false);
+  });
+  await t('repo cu nume hash + producător Fedora → pachet Fedora', () => {
+    assert.deepStrictEqual(scanner.rpmSourceLabel('19278be6a81040f5b6cbc7bacea5148e', 'Fedora Project'), { label: 'Fedora', external: false });
+    assert.strictEqual(scanner.rpmSourceLabel('19278be6a81040f5b6cbc7bacea5148e', 'Acme').external, true);
+  });
+  await t('traduceri: engleză în backend și Name[en] din .desktop', () => {
+    i18n.setLang('en');
+    try {
+      assert.strictEqual(scanner.rpmSourceLabel('@commandline', '').label, 'Downloaded .rpm file');
+      const e = parseDesktopText('[Desktop Entry]\nType=Application\nName=Fișiere\nName[en_GB]=Files\nExec=x', 'x.desktop');
+      assert.strictEqual(e.name, 'Files');
+      assert.strictEqual(require('../src/util').humanSize(1500000), '1.5 MB');
+    } finally { i18n.setLang('ro'); }
+    assert.strictEqual(require('../src/util').humanSize(1500000), '1,5 MB');
+    for (const k of Object.keys(i18n.STR.ro)) assert.ok(k in i18n.STR.en, `lipsește traducerea ${k}`);
+  });
   await t('nume frumos pentru AppImage', () => {
     assert.strictEqual(scanner.prettyAppImageName('/x/Obsidian-1.6.7.AppImage'), 'Obsidian');
     assert.strictEqual(scanner.prettyAppImageName('/x/LM_Studio-0.3.5-x86_64.AppImage'), 'LM Studio');
@@ -244,6 +267,10 @@ const fakeRun = async (cmd, args) => {
     await un.uninstall([s], { leftovers: [s.dataDir] }, () => {}, ov);
     const c = calls.filter((x) => x[0] === 'flatpak' && x[1] === 'uninstall').pop();
     assert.ok(c.includes('--delete-data') && c.includes('--system') && c.includes('com.spotify.Client'));
+  });
+  await t('Flatpak de sistem → avertizează că poate cere parola', async () => {
+    const p = await un.preview([by('flatpak:system:com.spotify.Client')], ov);
+    assert.ok(p.needsPassword);
   });
   await t('Parola refuzată → anulare curată', async () => {
     const r = await un.uninstall([by('rpm:rustdesk')], {}, () => {}, { ...ov, rootRun: async () => ({ code: 126, stdout: '', stderr: '' }) });

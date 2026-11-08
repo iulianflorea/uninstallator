@@ -9,7 +9,8 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="backdrop" aria-hidden="true">
+  <div class="backdrop" id="backdrop" aria-hidden="true">
+    <div class="bg-image" id="bgImage"></div>
     <div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="blob b4"></div>
     <div class="grain"></div>
   </div>
@@ -18,17 +19,17 @@
     <aside class="sidebar glass">
       <div class="side-top drag">
         <div class="lights no-drag">
-          <button class="tl close" data-win="close" title="Închide"><svg viewBox="0 0 10 10"><path d="M3 3l4 4M7 3l-4 4"/></svg></button>
-          <button class="tl min" data-win="min" title="Minimizează"><svg viewBox="0 0 10 10"><path d="M2.5 5h5"/></svg></button>
-          <button class="tl max" data-win="max" title="Mărește"><svg viewBox="0 0 10 10"><path d="M3 6.8V3h3.8M7 3.2V7H3.2"/></svg></button>
+          <button class="tl close" data-win="close" data-i18n-title="close"><svg viewBox="0 0 10 10"><path d="M3 3l4 4M7 3l-4 4"/></svg></button>
+          <button class="tl min" data-win="min" data-i18n-title="minimize"><svg viewBox="0 0 10 10"><path d="M2.5 5h5"/></svg></button>
+          <button class="tl max" data-win="max" data-i18n-title="maximize"><svg viewBox="0 0 10 10"><path d="M3 6.8V3h3.8M7 3.2V7H3.2"/></svg></button>
         </div>
       </div>
 
       <div class="brand">
         <img src="icon.png" alt="" class="brand-icon">
         <div>
-          <div class="brand-name">Dezinstalator</div>
-          <div class="brand-sub" id="brandSub">Se caută aplicațiile…</div>
+          <div class="brand-name" data-i18n="appName">Dezinstalator</div>
+          <div class="brand-sub" id="brandSub"></div>
         </div>
       </div>
 
@@ -37,12 +38,16 @@
       <div class="side-footer">
         <button class="ghost-btn" id="cleanFlatpak" hidden>
           <svg viewBox="0 0 24 24"><path d="M14 3l7 7M11.5 5.5l7 7M4 20l6.5-6.5M8 13l3 3-4.5 4.5H4v-2.5z"/></svg>
-          <span>Curăță Flatpak nefolosite</span>
+          <span data-i18n="cleanFlatpak"></span>
         </button>
-        <div class="segmented" id="themeSeg" role="radiogroup" aria-label="Temă">
-          <button data-theme="system" title="Automat"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4v16a8 8 0 000-16z" class="fill"/></svg></button>
-          <button data-theme="light" title="Luminos"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg></button>
-          <button data-theme="dark" title="Întunecat"><svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z"/></svg></button>
+        <button class="ghost-btn" id="openSettings">
+          <svg viewBox="0 0 24 24" class="purple"><circle cx="13.5" cy="6.5" r="1.6"/><circle cx="17.5" cy="10.5" r="1.6"/><circle cx="8.5" cy="7.5" r="1.6"/><circle cx="6.5" cy="12.5" r="1.6"/><path d="M12 2.5a9.5 9.5 0 000 19c1 0 1.6-.8 1.6-1.6 0-.5-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6h1.9a5.3 5.3 0 005.2-5.3C21.5 6.3 17.2 2.5 12 2.5z"/></svg>
+          <span data-i18n="settings"></span>
+        </button>
+        <div class="segmented" id="themeSeg" role="radiogroup" data-i18n-aria="theme">
+          <button data-theme="system" data-i18n-title="themeAuto"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4v16a8 8 0 000-16z" class="fill"/></svg></button>
+          <button data-theme="light" data-i18n-title="themeLight"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg></button>
+          <button data-theme="dark" data-i18n-title="themeDark"><svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z"/></svg></button>
         </div>
       </div>
     </aside>
@@ -50,21 +55,21 @@
     <main class="main">
       <header class="topbar drag">
         <div class="titles">
-          <h1 id="viewTitle">Toate aplicațiile</h1>
+          <h1 id="viewTitle"></h1>
           <p id="viewSub">&nbsp;</p>
         </div>
         <div class="tools no-drag">
           <label class="search glass-pill">
             <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
-            <input id="search" type="search" placeholder="Caută" autocomplete="off" spellcheck="false">
+            <input id="search" type="search" data-i18n-placeholder="search" autocomplete="off" spellcheck="false">
             <kbd>Ctrl F</kbd>
           </label>
           <div class="segmented sort" id="sortSeg">
-            <button data-sort="name">Nume</button>
-            <button data-sort="size">Mărime</button>
-            <button data-sort="recent">Recente</button>
+            <button data-sort="name" data-i18n="sortName"></button>
+            <button data-sort="size" data-i18n="sortSize"></button>
+            <button data-sort="recent" data-i18n="sortRecent"></button>
           </div>
-          <button class="icon-btn glass-pill" id="refresh" title="Reîmprospătează (Ctrl R)">
+          <button class="icon-btn glass-pill" id="refresh" data-i18n-title="refresh">
             <svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 10-2.3 5.7M20 4v7h-7"/></svg>
           </button>
         </div>
@@ -77,8 +82,8 @@
 
   <div id="selBar" class="selbar glass" hidden>
     <span id="selText"></span>
-    <button class="btn plain" id="selClear">Anulează</button>
-    <button class="btn danger" id="selGo">Dezinstalează</button>
+    <button class="btn plain" id="selClear" data-i18n="cancel"></button>
+    <button class="btn danger" id="selGo" data-i18n="uninstall"></button>
   </div>
 
   <div id="sheetWrap" class="sheet-wrap" hidden>
@@ -87,6 +92,7 @@
 
   <div id="toasts" class="toasts"></div>
 
+  <script src="i18n.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
